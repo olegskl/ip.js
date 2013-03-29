@@ -1,11 +1,28 @@
-/*jslint browser: true, bitwise: true */
+/**
+ * @fileOverview This file contains a library for handling IP addresses.
+ * @author Oleg Sklyanchuk
+ * @version 0.2.0
+ */
+
+/*jslint browser: true, node: true, bitwise: true */
+/*globals define */
+
+// ------------------
+// TODO:
+// 1. IPv6
+// 2. Performance (avoid duplication of method calls)
+// 3. `contains` method should include broadcast IP address?
+// ------------------
 
 // ip(2130706433).toString(); // '127.0.0.1'
 // ip('127.0.0.1').valueOf(); // 2130706433
-// ip('127.0.0.1') > ip('127.0.0.2') // true
-
+// 
+// ip('127.0.0.1') > ip('127.0.0.2') // false
+// ip('127.0.0.1') < ip('127.0.0.2') // true
+// 
 // ip('127.0.0.1').mask('255.255.255.0'); // same as below
 // ip('127.0.0.1').mask(24); // same as above
+// ip('127.0.0.1').mask('24'); // same as above
 // ip('127.0.0.1').mask('255.255.255.0').contains('127.0.0.5'); // true
 // ip('127.0.0.1').mask('255.255.255.0').contains(2130706433); // true
 // ip('127.0.0.1').mask('255.255.255.0').size; // 256
@@ -14,89 +31,179 @@
 // ip('127.0.0.1').mask('255.255.255.0').broadcast; // 127.0.0.255
 // ip('127.0.0.1').mask('255.255.255.0').toString(); // 127.0.0.1/24
 
-(function (context) {
-    // ECMAScript 5 strict mode:
+// Universal Module Definition for CommonJS, AMD, and browser globals:
+(function (root, factory) {
     'use strict';
-
-    // Avoid replacing "ip" property if it already exists in the context:
-    if (!context || typeof context.ip !== 'undefined') { return; }
+    if (typeof require === 'function' && module && typeof module === 'object' &&
+            module.exports && typeof module.exports === 'object') {
+        module.exports = factory(); // CommonJS
+    } else if (typeof define === 'function' && define.amd) {
+        define(factory); // AMD
+    } else {
+        root.ip = factory(); // browser global
+    }
+}(this, function () {
+    'use strict';
 
     /**
      * Converts an IPv4 address written in dot-decimal notation to number.
-     * @param  {String} dotNotation IPv4 address in dot-decimal notation form.
-     * @return {Number}             IPv4 address in numeric form.
+     * @param  {String} ipv4DotNotation IPv4 address as dot-decimal notation.
+     * @throws {TypeError}              If ipv4DotNotation is not a String.
+     * @throws {Error}                  If the IP address is invalid.
+     * @return {Number}                 The IPv4 address in numeric form.
      */
-    function ipv4DotNotationToNumber(dotNotation) {
-        var result = 0,
+    function ipv4DotNotationToNumber(ipv4DotNotation) {
+        var ipv4Numeric = 0,
             decimals,
             decimal,
             i;
         // Avoid type conversion ambiguities by enforcing the valid type:
-        if (typeof dotNotation !== 'string') {
-            throw new TypeError('Expected notation argument type is String.');
+        if (typeof ipv4DotNotation !== 'string') {
+            throw new TypeError('Expected ipv4DotNotation argument type to be' +
+                ' "string". Got "' + typeof ipv4DotNotation + '" instead.');
         }
-        // Avoid usage of complex regular expressions and validate only when
-        // and what is necessary:
-        if (dotNotation.indexOf('.') < 0) {
-            throw new Error('Malformed IP address.');
-        }
-        // It is now safe to split the string into decimals:
-        decimals = dotNotation.split('.');
+        // Avoid usage of complex regular expressions; instead attempt splitting
+        // the human-readable into decimals and rely on validation performed
+        // later on every individual decimal:
+        decimals = ipv4DotNotation.split('.');
         for (i = 0; i < 4; i += 1) {
             decimal = parseInt(decimals[i], 10);
             // Check for NaN (NaN !== NaN) and for decimal outside of range:
             if (decimal !== decimal || decimal < 0 || decimal > 255) {
-                throw new Error('Invalid IP address.');
+                throw new Error('Invalid IPv4 address "' + ipv4DotNotation +
+                    '".');
             }
-            result = (result * 256) + decimal;
+            ipv4Numeric = (ipv4Numeric * 256) + decimal;
         }
-        return result;
+        return ipv4Numeric;
     }
 
     /**
      * Converts an IPv4 address given as number to dot-decimal notation form.
-     * @param  {Number} number IPv4 address in numeric form.
-     * @return {String}        IPv4 address in dot-decimal notation form.
+     * @param  {Number} ipv4Numeric IPv4 address in numeric form.
+     * @throws {TypeError}          If ipv4Numeric is not a String.
+     * @throws {Error}              If the IPv4 address is invalid.
+     * @return {String}             The IPv4 address in dot-decimal notation.
      */
-    function ipv4NumberToDotNotation(number) {
-        var result,
-            i = 3;
+    function ipv4NumberToDotNotation(ipv4Numeric) {
+        var ipv4DotNotation,
+            i = 4;
         // Avoid type conversion ambiguities by enforcing the valid type:
-        if (typeof number !== 'number') {
-            throw new TypeError('Expected number argument type is Number.');
+        if (typeof ipv4Numeric !== 'number') {
+            throw new TypeError('Expected ipv4Numeric argument type to be' +
+                ' "number". Got "' + typeof ipv4Numeric + '" instead.');
         }
         // IPv4 addresses span from 0 (0.0.0.0) to 4294967295 (255.255.255.255):
-        if (number < 0 || number > 4294967295) {
-            throw new Error('Invalid IP address.');
+        if (ipv4Numeric < 0 || ipv4Numeric > 4294967295) {
+            throw new Error('Invalid IPv4 address ' + ipv4Numeric + '.');
         }
         // It is now safe to proceed with calculations:
-        result = number % 256;
-        while ((i -= 1) >= 0) {
-            number = Math.floor(number / 256);
-            result = (number % 256) + '.' + result;
+        ipv4DotNotation = ipv4Numeric % 256;
+        while ((i -= 1) > 0) {
+            ipv4Numeric = Math.floor(ipv4Numeric / 256);
+            ipv4DotNotation = (ipv4Numeric % 256) + '.' + ipv4DotNotation;
         }
-        return result;
+        return ipv4DotNotation;
     }
 
+    /**
+     * Returns an object with properties describing the given IP address.
+     * @private
+     * @param  {String|Number} address IP address.
+     * @return {Object}                IP address description object.
+     */
+    function ip(address) {
+        var numeric, // numeric value of the given IP address
+            notation; // human-readable notation
 
-    function netmask(numeric, prefix) {
+        // Figure out the way the IP address argument is passed; could be String
+        // or Number; could be IPv4 or IPv6:
+        if (typeof address === 'string') {
+            numeric = ipv4DotNotationToNumber(address);
+            notation = address;
+        } else if (typeof address === 'number') {
+            notation = ipv4NumberToDotNotation(address);
+            numeric = address;
+        } else {
+            throw new TypeError('Unexpected IP address argument type.');
+        }
 
-        var bits,
-            maskedAddress,
-            size,
-            first,
+        return {
+            valueOf: function () {
+                return numeric;
+            },
+            toString: function () {
+                return notation;
+            }
+        };
+    }
+
+    /**
+     * Validates and normalizes netmask as subnet prefix.
+     * @param  {String|Number} netmask Netmask as number, numeric string, or
+     *                                 dot-delimited notation.
+     * @return {Number|Null}           Numeric network prefix or null on error.
+     */
+    function netmaskToPrefixSize(netmask) {
+        var lastIndexOfOne, firstIndexOfZero;
+        // Netmask will usually be passed as String in dot notation, e.g.
+        // "255.255.255.0", but may equally be a numeric String such as "24":
+        if (typeof netmask === 'string') {
+            // Quick check for dot notation:
+            if (netmask.indexOf('.') !== -1) {
+                netmask = ip(netmask).valueOf().toString(2);
+                lastIndexOfOne = netmask.lastIndexOf('1');
+                firstIndexOfZero = netmask.indexOf('0');
+                return (lastIndexOfOne !== -1 && firstIndexOfZero !== -1 &&
+                        lastIndexOfOne < firstIndexOfZero)
+                    ? firstIndexOfZero
+                    : null;
+            } else {
+                netmask = parseInt(netmask, 10);
+                // Returning here instead of the main function body to avoid
+                // an extra typeof check:
+                return (netmask === netmask && netmask >= 0 && netmask <= 32)
+                    ? netmask
+                    : null;
+            }
+        }
+        // Alternatively the netmask could be provided as a number; we just
+        // need to check if it's valid:
+        return (netmask === netmask && typeof netmask === 'number' &&
+                netmask >= 0 && netmask <= 32)
+            ? netmask
+            : null;
+    }
+
+    /**
+     * Returns a subnet description object.
+     * @private
+     * @param  {number}        ipNumeric An IP address in its numeric form.
+     * @param  {String|Number} netmask   Netmask.
+     * @return {Object}                  Subnet description object.
+     */
+    function subnet(ipNumeric, netmask) {
+
+        var first,
             last,
             firstNumeric,
             lastNumeric,
             network,
-            broadcast;
+            networkNumeric,
+            prefixSize = netmaskToPrefixSize(netmask), // number of shared bits
+            bits = 32 - prefixSize,
+            maskedAddress = (ipNumeric & ((0xffffffff << bits) >>> 0)) >>> 0,
+            size = Math.pow(2, bits),
+            cidr = ipv4NumberToDotNotation(ipNumeric) + '/' + prefixSize,
+            broadcast,
+            broadcastNumeric;
 
         function valueOf() {
-            return numeric;
+            return ipNumeric;
         }
 
         function toString() {
-            return ipv4NumberToDotNotation(numeric) + '/' + prefix;
+            return cidr;
         }
 
         /**
@@ -105,42 +212,25 @@
          * @return {Boolean}               True if IP address is in range.
          */
         function contains(address) {
-            // We are only interested in obtaining the numeric representation
-            // of the given IPv4 address:
-            if (typeof address === 'string') {
-                address = ipv4DotNotationToNumber(address);
-            } else if (typeof address === 'number') {
-                // Avoid type conversion ambiguities by enforcing the valid type:
-                if (typeof address !== 'number') {
-                    throw new TypeError('Expected number argument type is Number.');
-                }
-                // IPv4 addresses span from 0 to 4294967295:
-                if (address < 0 || address > 4294967295) {
-                    throw new Error('Invalid IP address.');
-                }
-            } else {
-                throw new TypeError('Unexpected IP address argument type.');
-            }
-
-            return (address >= firstNumeric && address <= lastNumeric);
+            address = ip(address);
+            return (address >= (networkNumeric || firstNumeric) &&
+                    address <= (broadcastNumeric || lastNumeric));
         }
 
-        prefix = parseInt(prefix, 10);
-
-        bits = 32 - prefix;
-        maskedAddress = (numeric & ((0xffffffff << bits) >>> 0)) >>> 0;
-
-        size = Math.pow(2, bits);
-        if (prefix < 31) {
+        if (prefixSize < 31) {
             firstNumeric = maskedAddress + 1;
             lastNumeric = maskedAddress + size - 2;
+            broadcastNumeric = maskedAddress + size - 1;
+            networkNumeric = maskedAddress;
             first = ipv4NumberToDotNotation(firstNumeric);
             last = ipv4NumberToDotNotation(lastNumeric);
-            network = ipv4NumberToDotNotation(maskedAddress);
-            broadcast = ipv4NumberToDotNotation(maskedAddress + size - 1);
+            network = ipv4NumberToDotNotation(networkNumeric);
+            broadcast = ipv4NumberToDotNotation(broadcastNumeric);
         } else {
-            first = ipv4NumberToDotNotation(numeric);
-            last = ipv4NumberToDotNotation(maskedAddress + size - 1);
+            firstNumeric = ipNumeric;
+            lastNumeric = maskedAddress + size - 1;
+            first = ipv4NumberToDotNotation(firstNumeric);
+            last = ipv4NumberToDotNotation(lastNumeric);
         }
 
         return {
@@ -155,45 +245,16 @@
         };
     }
 
-    function ip(address) {
-
-        var numeric,
-            notation;
-
-        // Obtain 
-        if (typeof address === 'string') {
-            numeric = ipv4DotNotationToNumber(address);
-            notation = address;
-        } else if (typeof address === 'number') {
-            notation = ipv4NumberToDotNotation(address);
-            numeric = address;
-        } else {
-            throw new TypeError('Unexpected IP address argument type.');
-        }
-
-        function valueOf() {
-            return numeric;
-        }
-
-        function toString() {
-            return notation;
-        }
-
-        function mask(prefix) {
-            return netmask(numeric, prefix);
-        }
-
-        return {
-            valueOf: valueOf,
-            toString: toString,
-            mask: mask
-        };
-    }
-
     /**
-     * Primary container for methods.
-     * @type {Function}
+     * Main constructor.
+     * @param  {String|Number} address IPv4/6 addr in numeric or notation form.
+     * @return {Object}                IP address description object.
      */
-    context.ip = ip;
-
-}(window));
+    return function (address) {
+        address = ip(address);
+        address.mask = function (netmask) {
+            return subnet(address.valueOf(), netmask);
+        };
+        return address;
+    };
+}));
