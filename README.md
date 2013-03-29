@@ -10,7 +10,7 @@ Usage
     
     <script>
         var myIP = ip('127.0.0.1'),
-            myIPMask = myIP.mask(24);
+            myIPMask = myIP.mask(24); // same as .mask('255.255.255.0')
 
         myIP.valueOf(); // 2130706433
         myIP.toString(); // '127.0.0.1'
